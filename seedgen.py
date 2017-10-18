@@ -4,7 +4,7 @@ import re, sys, os, getopt
 
 
 def generate_seeds(db_values, table_name, fields):
-    opath = 'output/database/migrations/seeds'
+    opath = 'output/database/migrations/seeds/'
     fname = camel_case(table_name) + 'Seed.php'
     print("Generating: {}".format(fname))
     tabsize = 4
