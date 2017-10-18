@@ -10,7 +10,6 @@ def generate_seeds(db_values, table_name, fields):
     opath = 'output/'
     fname = camel_case(table_name) + 'Seed.php'
     print("Generating: {}".format(fname))
-    tabsize = 4
     if not os.path.exists(opath):
         os.makedirs(opath)
     f = open(opath + fname, 'w')
@@ -18,31 +17,23 @@ def generate_seeds(db_values, table_name, fields):
     f.write("use Illuminate\Database\Seeder;\n\n")
     f.write("class " + camel_case(table_name) +
             "Seed extends Seeder\n{\n")  # class open
-    f.write(' ' * tabsize + "/**\n" + ' ' *
-            tabsize + " * Run the database seeds.\n")
-    f.write(' ' * tabsize + " *\n" + ' ' * tabsize +
-            " * @return void\n" + ' ' * tabsize + " */\n")
-    f.write(' ' * tabsize + "public function run()\n" + ' ' * tabsize + "{\n")
-    f.write(' ' * tabsize * 2 + "$items = [\n")
-    for i, value in enumerate(db_values):
-        f.write(' ' * tabsize * 3 + '[')
+    f.write(tab() + "/**\n" + tab() + " * Run the database seeds.\n")
+    f.write(tab() + " *\n" + tab() + " * @return void\n" + tab() + " */\n")
+    f.write(tab() + "public function run()\n" + tab() + "{\n")
+    f.write(tab(2) + "$items = [\n")
+    for value in db_values:
+        seed = []
         for j, field in enumerate(value):
             if type(value[j]) is int:
-                f.write("'{}' => {}".format(fields[j], value[j]))
+                seed.append("'{}' => {}".format(fields[j], value[j]))
             elif value[j] is None:
-                f.write("'{}' => NULL".format(fields[j], value[j]))
+                seed.append("'{}' => NULL".format(fields[j], value[j]))
             else:
-                f.write("'{}' => '{}'".format(fields[j], value[j]))
-            if j != len(fields) - 1:
-                f.write(", ")
-        if i == len(db_values) - 1:
-            f.write(']\n')
-        else:
-            f.write('],\n')
-    f.write(' ' * tabsize * 2 + "];\n\n")
-    f.write(' ' * tabsize * 2 + "DB::table('" +
-            table_name + "')->insert($items);\n")
-    f.write(' ' * tabsize + "}\n")  # run end
+                seed.append("'{}' => '{}'".format(fields[j], value[j]))
+        f.write(tab(3) + '[' + ', '.join(seed) + '],\n')
+    f.write(tab(2) + "];\n\n")
+    f.write(tab(2) + "DB::table('" + table_name + "')->insert($items);\n")
+    f.write(tab() + "}\n")  # run end
     f.write("}\n")  # class end
     f.close()
 
@@ -53,12 +44,8 @@ def parse_sql(f):
     fields = None
 
     in_values = None
-    skip = 0
-    for i, line in enumerate(f):
-        if skip > 0:
-            skip = skip - 1
-            continue
-
+    input_file = enumerate(f)
+    for i, line in input_file:
         if in_values:
             if re.match('\t\(', line):
                 line = re.sub('NULL', 'None', line)
@@ -73,9 +60,13 @@ def parse_sql(f):
             line = re.sub("(`|,|\(|\))", "", line).split()
             table_name = line[0]
             fields = line[1:]
-            skip = 1
             in_values = True
+            next(input_file)
     f.close()
+
+
+def tab(count=1, tabsize=4):
+    return ' ' * tabsize * count
 
 
 def camel_case(s):
