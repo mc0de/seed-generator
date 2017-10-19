@@ -22,7 +22,7 @@ class SeedGenerator(object):
         return t.substitute(
             {'classname': classname, 'content': content, 'suffix': suffix})
 
-    def table_seed(self, rows, table, columns, suffix='Seed'):
+    def table_seed(self, table, columns, rows, suffix='Seed'):
         ofile = camel_case(table) + suffix + '.php'
         content = tab(2) + "$entries = [\n"
         for row in rows:
@@ -56,27 +56,26 @@ class SeedGenerator(object):
 
     def find_insert(self, sql):
         sql = open(sql, 'r')
-        db_values = []
-        table_name = None
-        fields = None
-
+        table = None
+        columns = None
+        rows = []
         in_values = None
-        input_file = enumerate(sql)
+        input_file = enumerate(sql)  # required for next()
         for i, line in input_file:
             if in_values:
                 if re.match('\t\(', line):
                     line = re.sub('NULL', 'None', line)
                     line = eval(re.sub('(^\t|,$\n|;$\n)', '', line))
-                    db_values.append(line)
+                    rows.append(line)
                 else:
-                    self.table_seed(db_values, table_name, fields)
+                    self.table_seed(table, columns, rows)
                     in_values = False
-                    db_values = []
+                    rows = []
             elif re.match("INSERT INTO", line):
                 line = re.sub("INSERT INTO ", "", line)
                 line = re.sub("(`|,|\(|\))", "", line).split()
-                table_name = line[0]
-                fields = line[1:]
+                table = line[0]
+                columns = line[1:]
                 in_values = True
                 next(input_file)
 
