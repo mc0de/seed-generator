@@ -5,79 +5,110 @@ import sys
 import os
 import getopt
 from collections import defaultdict
+from string import Template
 
 
-def template(classname, suffix='Seed', content=''):
-    return """<?php
+class SeedGenerator(object):
+    """docstring for SeedGenerator"""
 
-use Illuminate\Database\Seeder;
+    def __init__(self):
+        super().__init__()
+        self.opath = 'output/'
+        if not os.path.exists(self.opath):
+            os.makedirs(self.opath)
 
-class """ + classname + suffix + """ extends Seeder
-{
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
-    public function run()
-    {
-""" + content + """    }
-}
-"""
+    def template(self, classname, content, suffix='Seed'):
+        t = Template(open('template.php').read())
+        return t.substitute(
+            {'classname': classname, 'content': content, 'suffix': suffix})
 
+    def table_seed(self, values, table, columns, suffix='Seed'):
+        ofile = camel_case(table) + suffix + '.php'
+        content = tab(2) + "$entries = [\n"
+        for value in values:
+            rows = []
+            for i in range(len(columns)):
+                if type(value[i]) is int:
+                    rows.append("'{}' => {}".format(columns[i], value[i]))
+                elif value[i] is None:
+                    rows.append("'{}' => NULL".format(columns[i], value[i]))
+                else:
+                    rows.append("'{}' => '{}'".format(columns[i], value[i]))
+            content += tab(3) + '[' + ', '.join(rows) + '],\n'
+        content += tab(2) + "];\n\n"
+        content += tab(2) + "DB::table('" + table + \
+            "')->insert($entries);"
+        with open(self.opath + ofile, 'w') as f:
+            f.write(self.template(camel_case(
+                table), content, suffix=suffix))
+        print("\033[32mGenerated:\033[0m {}".format(ofile))
 
-def generate_seeds(db_values, table_name, fields):
-    opath = 'output/'
-    fname = camel_case(table_name) + 'Seed.php'  # add suffix here too
+    def database_seeder(self, tables):
+        ofile = 'DatabaseSeeder.php'
+        classes = []
+        for x in tables:
+            classes.append(tab(2) + "$this->call(" +
+                           camel_case(x) + "Seed::class)")
+        content = ";\n".join(classes) + ';'
+        with open(self.opath + ofile, 'w') as f:
+            f.write(self.template('Database', content, 'Seeder'))
+        print("\033[32mGenerated:\033[0m {}".format(ofile))
 
-    if not os.path.exists(opath):  # do not check everytime this, pls
-        os.makedirs(opath)
+    def find_insert(self, sql):
+        sql = open(sql, 'r')
+        db_values = []
+        table_name = None
+        fields = None
 
-    content = tab(2) + "$items = [\n"
+        in_values = None
+        input_file = enumerate(sql)
+        for i, line in input_file:
+            if in_values:
+                if re.match('\t\(', line):
+                    line = re.sub('NULL', 'None', line)
+                    line = eval(re.sub('(^\t|,$\n|;$\n)', '', line))
+                    db_values.append(line)
+                else:
+                    self.table_seed(db_values, table_name, fields)
+                    in_values = False
+                    db_values = []
+            elif re.match("INSERT INTO", line):
+                line = re.sub("INSERT INTO ", "", line)
+                line = re.sub("(`|,|\(|\))", "", line).split()
+                table_name = line[0]
+                fields = line[1:]
+                in_values = True
+                next(input_file)
 
-    for value in db_values:
-        seed = []
-        for i in range(len(fields)):
-            if type(value[i]) is int:
-                seed.append("'{}' => {}".format(fields[i], value[i]))
-            elif value[i] is None:
-                seed.append("'{}' => NULL".format(fields[i], value[i]))
+    def find_reference(self, sql):
+        sql = open(sql, 'r')
+        search_references = False
+        relations = defaultdict(list)
+        tables = []
+        table = None
+        for line in sql:
+            if search_references:
+                references = re.match("(.*)(REFERENCES `)(.*.)(` \()", line)
+                if references:
+                    relations[table[2]].append(references[3])
+                elif re.match("LOCK TABLES", line):
+                    search_references = False
             else:
-                seed.append("'{}' => '{}'".format(fields[i], value[i]))
-        content += tab(3) + '[' + ', '.join(seed) + '],\n'
-    content += tab(2) + "];\n\n"
-    content += tab(2) + "DB::table('" + table_name + "')->insert($items);\n"
-
-    with open(opath + fname, 'w') as file:
-        file.write(template(camel_case(table_name), content=content))
-    print("\033[32mGenerated:\033[0m {}".format(fname))
-
-
-def parse_sql(sql):
-    sql = open(sql, 'r')
-    db_values = []
-    table_name = None
-    fields = None
-
-    in_values = None
-    input_file = enumerate(sql)
-    for i, line in input_file:
-        if in_values:
-            if re.match('\t\(', line):
-                line = re.sub('NULL', 'None', line)
-                line = eval(re.sub('(^\t|,$\n|;$\n)', '', line))
-                db_values.append(line)
-            else:
-                generate_seeds(db_values, table_name, fields)
-                in_values = False
-                db_values = []
-        elif re.match("INSERT INTO", line):
-            line = re.sub("INSERT INTO ", "", line)
-            line = re.sub("(`|,|\(|\))", "", line).split()
-            table_name = line[0]
-            fields = line[1:]
-            in_values = True
-            next(input_file)
+                table = re.match("(CREATE TABLE `)(.*.)(`)", line)
+                if table:
+                    tables.append(table[2])
+                    search_references = True
+        seeder = sorted(list(set(tables) - set(relations)))  # all - with rels
+        while (relations):
+            for k, v in list(relations.items()):
+                for item in list(v):
+                    if item in seeder:
+                        v.remove(item)
+            for k, v in list(relations.items()):
+                if not v:
+                    seeder.append(k)
+                    del relations[k]
+        self.database_seeder(seeder)
 
 
 def tab(count=1, tabsize=4):
@@ -86,6 +117,10 @@ def tab(count=1, tabsize=4):
 
 def camel_case(s):
     return s.title().replace('_', '')
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 
 def usage():
@@ -99,53 +134,7 @@ Tool description
 """
 
 
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
-
-
-def build_relationships(sql):
-    sql = open(sql, 'r')
-    search_references = False
-    relations = defaultdict(list)
-    tables = []
-    table = None
-    for line in sql:
-        if search_references:
-            references = re.match("(.*)(REFERENCES `)(.*.)(` \()", line)
-            if references:
-                relations[table[2]].append(references[3])
-            elif re.match("LOCK TABLES", line):
-                search_references = False
-        else:
-            table = re.match("(CREATE TABLE `)(.*.)(`)", line)
-            if table:
-                tables.append(table[2])
-                search_references = True
-    seeder = sorted(list(set(tables) - set(relations)))
-    while (relations):
-        for k, v in list(relations.items()):
-            for item in list(v):
-                if item in seeder:
-                    v.remove(item)
-        for k, v in list(relations.items()):
-            if not v:
-                seeder.append(k)
-                del relations[k]
-    opath = 'output/'
-    fname = 'DatabaseSeeder.php'
-    if not os.path.exists(opath):
-        os.makedirs(opath)
-
-    content = ''
-    for i in seeder:
-        content += tab(2) + "$this->call(" + camel_case(i) + "Seed::class);\n"
-    with open(opath + fname, 'w') as file:
-        file.write(template('Database', 'Seeder', content))
-    print("\033[32mGenerated:\033[0m {}".format(fname))
-
-
 def main(argv):
-    # print(template('SomeClass', 'whole things'))
     try:
         opts, args = getopt.getopt(argv, "hi:", ['help', 'input='])
     except getopt.GetoptError as err:
@@ -154,17 +143,17 @@ def main(argv):
         sys.exit(2)
 
     if not opts:
-        eprint(usage())
-        sys.exit(2)
+        print(usage())
+        exit()
 
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             print(usage())
         elif opt in ('-i', '--input'):
             try:
-                f = open(arg, 'r')
-                parse_sql(arg)
-                build_relationships(arg)
+                generator = SeedGenerator()
+                generator.find_insert(arg)
+                generator.find_reference(arg)
             except IOError as err:
                 eprint(err)
 
