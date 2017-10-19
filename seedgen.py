@@ -4,13 +4,13 @@ import re
 import sys
 import os
 import getopt
+from collections import defaultdict
 
 
 def generate_seeds(db_values, table_name, fields):
     opath = 'output/'
     fname = camel_case(table_name) + 'Seed.php'
     flen = len(fields)
-    print("Generating: {}".format(fname))
     if not os.path.exists(opath):
         os.makedirs(opath)
     f = open(opath + fname, 'w')
@@ -37,15 +37,17 @@ def generate_seeds(db_values, table_name, fields):
     f.write(tab() + "}\n")  # run end
     f.write("}\n")  # class end
     f.close()
+    print("\033[32mGenerated:\033[0m {}".format(fname))
 
 
-def parse_sql(f):
+def parse_sql(sql):
+    sql = open(sql, 'r')
     db_values = []
     table_name = None
     fields = None
 
     in_values = None
-    input_file = enumerate(f)
+    input_file = enumerate(sql)
     for i, line in input_file:
         if in_values:
             if re.match('\t\(', line):
@@ -63,7 +65,6 @@ def parse_sql(f):
             fields = line[1:]
             in_values = True
             next(input_file)
-    f.close()
 
 
 def tab(count=1, tabsize=4):
@@ -89,6 +90,53 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+def build_relationships(sql):
+    sql = open(sql, 'r')
+    search_references = False
+    relations = defaultdict(list)
+    tables = []
+    table = None
+    for line in sql:
+        if search_references:
+            references = re.match("(.*)(REFERENCES `)(.*.)(` \()", line)
+            if references:
+                relations[table[2]].append(references[3])
+            elif re.match("LOCK TABLES", line):
+                search_references = False
+        else:
+            table = re.match("(CREATE TABLE `)(.*.)(`)", line)
+            if table:
+                tables.append(table[2])
+                search_references = True
+    seeder = sorted(list(set(tables) - set(relations)))
+    while (relations):
+        for k, v in list(relations.items()):
+            for item in list(v):
+                if item in seeder:
+                    v.remove(item)
+        for k, v in list(relations.items()):
+            if not v:
+                seeder.append(k)
+                del relations[k]
+    opath = 'output/'
+    fname = 'DatabaseSeeder.php'
+    if not os.path.exists(opath):
+        os.makedirs(opath)
+    d = open(opath + fname, 'w')
+    d.write("<?php\n\n")
+    d.write("use Illuminate\Database\Seeder;\n\n")
+    d.write("class DatabaseSeeder extends Seeder\n{\n")
+    d.write(tab() + "/**\n" + tab() + " * Run the database seeds.\n")
+    d.write(tab() + " *\n" + tab() + " * @return void\n" + tab() + " */\n")
+    d.write(tab() + "public function run()\n" + tab() + "{\n")
+    for i in seeder:
+        d.write(tab(2) + "$this->call(" + camel_case(i) + "Seed::class);\n")
+    d.write(tab() + "}\n")  # run end
+    d.write("}\n")  # class end
+    d.close()
+    print("\033[32mGenerated:\033[0m {}".format(fname))
+
+
 def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hi:", ['help', 'input='])
@@ -107,7 +155,8 @@ def main(argv):
         elif opt in ('-i', '--input'):
             try:
                 f = open(arg, 'r')
-                parse_sql(f)
+                parse_sql(arg)
+                build_relationships(arg)
             except IOError as err:
                 eprint(err)
 
