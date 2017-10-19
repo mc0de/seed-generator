@@ -7,36 +7,49 @@ import getopt
 from collections import defaultdict
 
 
+def template(classname, suffix='Seed', content=''):
+    return """<?php
+
+use Illuminate\Database\Seeder;
+
+class """ + classname + suffix + """ extends Seeder
+{
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
+    public function run()
+    {
+""" + content + """    }
+}
+"""
+
+
 def generate_seeds(db_values, table_name, fields):
     opath = 'output/'
-    fname = camel_case(table_name) + 'Seed.php'
-    flen = len(fields)
-    if not os.path.exists(opath):
+    fname = camel_case(table_name) + 'Seed.php'  # add suffix here too
+
+    if not os.path.exists(opath):  # do not check everytime this, pls
         os.makedirs(opath)
-    f = open(opath + fname, 'w')
-    f.write("<?php\n\n")
-    f.write("use Illuminate\Database\Seeder;\n\n")
-    f.write("class " + camel_case(table_name) +
-            "Seed extends Seeder\n{\n")  # class open
-    f.write(tab() + "/**\n" + tab() + " * Run the database seeds.\n")
-    f.write(tab() + " *\n" + tab() + " * @return void\n" + tab() + " */\n")
-    f.write(tab() + "public function run()\n" + tab() + "{\n")
-    f.write(tab(2) + "$items = [\n")
+
+    content = tab(2) + "$items = [\n"
+
     for value in db_values:
         seed = []
-        for i in range(flen):
+        for i in range(len(fields)):
             if type(value[i]) is int:
                 seed.append("'{}' => {}".format(fields[i], value[i]))
             elif value[i] is None:
                 seed.append("'{}' => NULL".format(fields[i], value[i]))
             else:
                 seed.append("'{}' => '{}'".format(fields[i], value[i]))
-        f.write(tab(3) + '[' + ', '.join(seed) + '],\n')
-    f.write(tab(2) + "];\n\n")
-    f.write(tab(2) + "DB::table('" + table_name + "')->insert($items);\n")
-    f.write(tab() + "}\n")  # run end
-    f.write("}\n")  # class end
-    f.close()
+        content += tab(3) + '[' + ', '.join(seed) + '],\n'
+    content += tab(2) + "];\n\n"
+    content += tab(2) + "DB::table('" + table_name + "')->insert($items);\n"
+
+    with open(opath + fname, 'w') as file:
+        file.write(template(camel_case(table_name), content=content))
     print("\033[32mGenerated:\033[0m {}".format(fname))
 
 
@@ -122,22 +135,17 @@ def build_relationships(sql):
     fname = 'DatabaseSeeder.php'
     if not os.path.exists(opath):
         os.makedirs(opath)
-    d = open(opath + fname, 'w')
-    d.write("<?php\n\n")
-    d.write("use Illuminate\Database\Seeder;\n\n")
-    d.write("class DatabaseSeeder extends Seeder\n{\n")
-    d.write(tab() + "/**\n" + tab() + " * Run the database seeds.\n")
-    d.write(tab() + " *\n" + tab() + " * @return void\n" + tab() + " */\n")
-    d.write(tab() + "public function run()\n" + tab() + "{\n")
+
+    content = ''
     for i in seeder:
-        d.write(tab(2) + "$this->call(" + camel_case(i) + "Seed::class);\n")
-    d.write(tab() + "}\n")  # run end
-    d.write("}\n")  # class end
-    d.close()
+        content += tab(2) + "$this->call(" + camel_case(i) + "Seed::class);\n"
+    with open(opath + fname, 'w') as file:
+        file.write(template('Database', 'Seeder', content))
     print("\033[32mGenerated:\033[0m {}".format(fname))
 
 
 def main(argv):
+    # print(template('SomeClass', 'whole things'))
     try:
         opts, args = getopt.getopt(argv, "hi:", ['help', 'input='])
     except getopt.GetoptError as err:
