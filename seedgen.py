@@ -9,6 +9,7 @@ import getopt
 def generate_seeds(db_values, table_name, fields):
     opath = 'output/'
     fname = camel_case(table_name) + 'Seed.php'
+    flen = len(fields)
     print("Generating: {}".format(fname))
     if not os.path.exists(opath):
         os.makedirs(opath)
@@ -23,13 +24,13 @@ def generate_seeds(db_values, table_name, fields):
     f.write(tab(2) + "$items = [\n")
     for value in db_values:
         seed = []
-        for j, field in enumerate(value):
-            if type(value[j]) is int:
-                seed.append("'{}' => {}".format(fields[j], value[j]))
-            elif value[j] is None:
-                seed.append("'{}' => NULL".format(fields[j], value[j]))
+        for i in range(flen):
+            if type(value[i]) is int:
+                seed.append("'{}' => {}".format(fields[i], value[i]))
+            elif value[i] is None:
+                seed.append("'{}' => NULL".format(fields[i], value[i]))
             else:
-                seed.append("'{}' => '{}'".format(fields[j], value[j]))
+                seed.append("'{}' => '{}'".format(fields[i], value[i]))
         f.write(tab(3) + '[' + ', '.join(seed) + '],\n')
     f.write(tab(2) + "];\n\n")
     f.write(tab(2) + "DB::table('" + table_name + "')->insert($items);\n")
