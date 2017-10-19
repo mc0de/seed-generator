@@ -22,19 +22,19 @@ class SeedGenerator(object):
         return t.substitute(
             {'classname': classname, 'content': content, 'suffix': suffix})
 
-    def table_seed(self, values, table, columns, suffix='Seed'):
+    def table_seed(self, rows, table, columns, suffix='Seed'):
         ofile = camel_case(table) + suffix + '.php'
         content = tab(2) + "$entries = [\n"
-        for value in values:
-            rows = []
+        for row in rows:
+            entries = []
             for i in range(len(columns)):
-                if type(value[i]) is int:
-                    rows.append("'{}' => {}".format(columns[i], value[i]))
-                elif value[i] is None:
-                    rows.append("'{}' => NULL".format(columns[i], value[i]))
+                if type(row[i]) is int:
+                    entries.append("'{}' => {}".format(columns[i], row[i]))
+                elif row[i] is None:
+                    entries.append("'{}' => null".format(columns[i], row[i]))
                 else:
-                    rows.append("'{}' => '{}'".format(columns[i], value[i]))
-            content += tab(3) + '[' + ', '.join(rows) + '],\n'
+                    entries.append("'{}' => '{}'".format(columns[i], row[i]))
+            content += tab(3) + '[' + ', '.join(entries) + '],\n'
         content += tab(2) + "];\n\n"
         content += tab(2) + "DB::table('" + table + \
             "')->insert($entries);"
