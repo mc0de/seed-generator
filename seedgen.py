@@ -5,6 +5,7 @@ import sys
 import os
 import getopt
 from collections import defaultdict
+from datetime import datetime
 from string import Template
 
 
@@ -20,7 +21,12 @@ class SeedGenerator(object):
     def template(self, classname, content, suffix='Seed'):
         t = Template(open('template.stub').read())
         return t.substitute(
-            {'classname': classname, 'content': content, 'suffix': suffix})
+            {
+                'classname': classname,
+                'content': content,
+                'suffix': suffix,
+                'datetime': datetime.now().strftime('%Y-%d-%d @ %H:%M:%S')
+            })
 
     def table_seed(self, table, columns, rows, suffix='Seed'):
         ofile = camel_case(table) + suffix + '.php'

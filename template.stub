@@ -10,6 +10,8 @@ class $classname$suffix extends Seeder
      * Generated with SeedGenerator from sql dump
      * https://github.com/mc0de/seed-generator
      *
+     * $datetime
+     *
      * @return void
      */
     public function run()
