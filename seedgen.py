@@ -18,7 +18,7 @@ class SeedGenerator(object):
             os.makedirs(self.opath)
 
     def template(self, classname, content, suffix='Seed'):
-        t = Template(open('template.php').read())
+        t = Template(open('template.stub').read())
         return t.substitute(
             {'classname': classname, 'content': content, 'suffix': suffix})
 

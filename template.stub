@@ -7,7 +7,7 @@ class $classname$suffix extends Seeder
     /**
      * Run the database seeds.
      *
-     * Generated with SeedGenerator
+     * Generated with SeedGenerator from sql dump
      * https://github.com/mc0de/seed-generator
      *
      * @return void
