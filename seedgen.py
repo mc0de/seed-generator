@@ -33,7 +33,8 @@ class SeedGenerator(object):
                 elif row[i] is None:
                     entries.append("'{}' => null".format(columns[i], row[i]))
                 else:
-                    entries.append("'{}' => '{}'".format(columns[i], row[i]))
+                    # escape single quotes
+                    entries.append("'{}' => '{}'".format(columns[i], row[i].replace("'", "\\'")))
             content += tab(3) + '[' + ', '.join(entries) + '],\n'
         content += tab(2) + "];\n\n"
         content += tab(2) + "DB::table('" + table + \
